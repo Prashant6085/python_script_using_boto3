@@ -24,5 +24,6 @@ Default Region (e.g., us-west-2)
 Output format (json, table, text)
 
 
+
 save dependecies in requirements.txt pip freeze > requirements.txt
 to install dependencies: pip install -r requirements.txt
