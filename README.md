@@ -4,9 +4,12 @@ Boto3 is the official Amazon Web Services (AWS) Software Development Kit (SDK) f
 #####How to get started with Boto3?#####
 Install the SDK:
 pip install boto3
+
 Get AWS credentials (IAM access key & secret key) from AWS Cosole
+
 Configure AWS CLI for Boto3 usage:
 aws configure
+
 You'll be prompted to enter:
 
 AWS Access Key ID
