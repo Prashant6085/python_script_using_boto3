@@ -10,6 +10,7 @@ pip install boto3
 Get AWS credentials (IAM access key & secret key) from AWS Cosole
 
 
+
 Configure AWS CLI for Boto3 usage:
 aws configure
 
