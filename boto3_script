@@ -1,0 +1,341 @@
+#####What is Boto3?#####
+Boto3 is the official Amazon Web Services (AWS) Software Development Kit (SDK) for Python, allowing developers to write software that makes use of AWS services like EC2, S3, Lambda, RDS, etc.
+
+#####How to get started with Boto3?#####
+Install the SDK:
+
+pip install boto3
+
+Get AWS credentials (IAM access key & secret key) from AWS Cosole
+
+Configure AWS CLI for Boto3 usage:
+
+aws configure
+
+You'll be prompted to enter:
+
+AWS Access Key ID
+AWS Secret Access Key
+Default Region (e.g., us-west-2)
+Output format (json, table, text)
+
+
+1) Start, Stop, Restart & Terminate EC2 instance
+import boto3
+import sys
+
+def manage_ec2_instance(instance_id, action):
+    ec2 = boto3.client('ec2')
+    
+    actions = {
+        'start': 'start_instances',
+        'stop': 'stop_instances',
+        'restart': 'reboot_instances',
+        'terminate': 'terminate_instances'
+    }
+    
+    if action not in actions:
+        print(f"Invalid action: {action}. Use 'start', 'stop', 'restart', or 'terminate'.")
+        return
+    
+    try:
+        response = getattr(ec2, actions[action])(InstanceIds=[instance_id])
+        print(f"{action.capitalize()} action initiated for instance {instance_id}.")
+        print(response)
+    except Exception as e:
+        print(f"Error: {e}")
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("Usage: python script.py <instance_id> <action>")
+        sys.exit(1)
+    
+    instance_id = sys.argv[1]
+    action = sys.argv[2].lower()
+    manage_ec2_instance(instance_id, action)
+Use case example:
+
+python script.py i-0abcd1234efgh5678 start
+
+2) Identify and delete unused Elastic Block Store (EBS) volumes to reduce costs.
+import boto3
+
+def delete_unused_ebs_volumes():
+    ec2 = boto3.client('ec2')
+    volumes = ec2.describe_volumes(Filters=[{'Name': 'status', 'Values': ['available']}])
+    for volume in volumes['Volumes']:
+        ec2.delete_volume(VolumeId=volume['VolumeId'])
+        print(f"Deleted volume: {volume['VolumeId']}")
+
+# Example usage:
+delete_unused_ebs_volumes()
+
+3) Rotate AWS Access Keys for IAM Users
+import boto3
+
+def rotate_iam_keys(username):
+    iam = boto3.client('iam')
+    old_keys = iam.list_access_keys(UserName=username)['AccessKeyMetadata']
+    
+    for key in old_keys:
+        iam.delete_access_key(UserName=username, AccessKeyId=key['AccessKeyId'])
+    
+    new_key = iam.create_access_key(UserName=username)
+    print(f"New Access Key: {new_key['AccessKey']['AccessKeyId']}")
+
+# Example usage:
+rotate_iam_keys('existing-user')
+
+4) Cleanup Old Lambda Function Versions
+import boto3
+
+def cleanup_old_lambda_versions(function_name):
+    lambda_client = boto3.client('lambda')
+    versions = lambda_client.list_versions_by_function(FunctionName=function_name)['Versions']
+
+    for version in versions:
+        if version['Version'] not in ['$LATEST']:
+            lambda_client.delete_function(FunctionName=function_name, Qualifier=version['Version'])
+            print(f"Deleted Lambda version {version['Version']}")
+
+# Example usage:
+cleanup_old_lambda_versions('my-lambda-function')
+
+5) Monitor AWS Billing Costs
+import boto3
+
+def get_aws_billing():
+    ce = boto3.client('ce')
+    response = ce.get_cost_and_usage(
+        TimePeriod={'Start': '2023-01-01', 'End': '2023-01-31'},
+        Granularity='MONTHLY',
+        Metrics=['BlendedCost']
+    )
+    print(f"AWS Billing Cost: {response['ResultsByTime'][0]['Total']['BlendedCost']['Amount']} USD")
+
+# Example usage:
+get_aws_billing()
+
+6) Restart Unhealthy EC2 Instances:
+import boto3
+
+def restart_unhealthy_instances():
+    ec2 = boto3.client('ec2')
+    statuses = ec2.describe_instance_status(IncludeAllInstances=True)
+    
+    for status in statuses['InstanceStatuses']:
+        if status['InstanceStatus']['Status'] != 'ok':
+            ec2.reboot_instances(InstanceIds=[status['InstanceId']])
+            print(f"Rebooted instance: {status['InstanceId']}")
+
+# Example usage:
+restart_unhealthy_instances()
+
+7) Delete old S3 objects beyond a retention period.
+import boto3
+
+def delete_old_s3_objects(bucket_name, days=30):
+    s3 = boto3.client('s3')
+    objects = s3.list_objects_v2(Bucket=bucket_name)
+
+    for obj in objects.get('Contents', []):
+        if (obj['LastModified']).days > days:
+            s3.delete_object(Bucket=bucket_name, Key=obj['Key'])
+            print(f"Deleted {obj['Key']} from {bucket_name}")
+
+# Example usage:
+delete_old_s3_objects('my-bucket', 30)
+
+8) Identify and stop underutilized instances.
+import boto3
+
+def stop_idle_instances():
+    ec2 = boto3.client('ec2')
+    instances = ec2.describe_instances(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
+
+    for reservation in instances['Reservations']:
+        for instance in reservation['Instances']:
+            if instance['CpuOptions']['CoreCount'] < 5:
+                ec2.stop_instances(InstanceIds=[instance['InstanceId']])
+                print(f"Stopped idle instance {instance['InstanceId']}")
+
+# Example usage:
+stop_idle_instances()
+
+9) S3 Bucket Backup and Synchronization:
+import boto3
+
+def sync_s3_buckets(source_bucket, destination_bucket):
+    s3 = boto3.resource('s3')
+    copy_source = {'Bucket': source_bucket, 'Key': obj.key}
+    for obj in s3.Bucket(source_bucket).objects.all():
+        s3.Object(destination_bucket, obj.key).copy(copy_source)
+    print(f"Data synced from {source_bucket} to {destination_bucket}")
+
+# Example usage:
+sync_s3_buckets('source-bucket-name', 'destination-bucket-name')
+
+10) DynamoDB Data Export to S3
+import boto3
+
+def export_dynamodb_to_s3(table_name, bucket_name, file_name):
+    dynamodb = boto3.resource('dynamodb')
+    s3 = boto3.client('s3')
+    table = dynamodb.Table(table_name)
+    data = table.scan()['Items']
+    s3.put_object(Bucket=bucket_name, Key=file_name, Body=str(data))
+    print(f"Data exported to s3://{bucket_name}/{file_name}")
+
+# Example usage:
+export_dynamodb_to_s3('my-table', 'my-bucket', 'backup.json')
+
+11) Streamline updates to AWS Lambda functions by automating deployments.
+import boto3
+
+def deploy_lambda_function(function_name, zip_file_path):
+    lambda_client = boto3.client('lambda')
+    with open(zip_file_path, 'rb') as f:
+        lambda_client.update_function_code(FunctionName=function_name, ZipFile=f.read())
+    print(f"Lambda function {function_name} updated successfully")
+
+# Example usage:
+deploy_lambda_function('my-function', '/path/to/your/lambda.zip')
+
+12) Set up CloudWatch alarms to monitor AWS resources and receive notifications on specific metrics.
+import boto3
+
+def create_cloudwatch_alarm(instance_id, threshold=70.0):
+    cloudwatch = boto3.client('cloudwatch')
+    cloudwatch.put_metric_alarm(
+        AlarmName=f'CPU_Utilization_{instance_id}',
+        MetricName='CPUUtilization',
+        Namespace='AWS/EC2',
+        Statistic='Average',
+        Period=300,
+        EvaluationPeriods=1,
+        Threshold=threshold,
+        ComparisonOperator='GreaterThanThreshold',
+        AlarmActions=['<SNS_TOPIC_ARN>'],
+        Dimensions=[{'Name': 'InstanceId', 'Value': instance_id}]
+    )
+    print(f"CloudWatch alarm created for {instance_id}")
+
+# Example usage:
+create_cloudwatch_alarm('i-1234567890abcdef0')
+
+13) Automate the creation of Amazon Machine Images (AMIs) for EC2 instances to ensure system backups
+import boto3
+
+def create_ami(instance_id, ami_name):
+    ec2 = boto3.client('ec2')
+    ec2.create_image(InstanceId=instance_id, Name=ami_name, NoReboot=True)
+    print(f"AMI {ami_name} created for instance {instance_id}")
+
+# Example usage:
+create_ami('i-1234567890abcdef0', 'my-ami-backup')
+
+14) Identify and delete unused Elastic Block Store (EBS) volumes to reduce costs.
+import boto3
+
+def delete_unused_ebs_volumes():
+    ec2 = boto3.client('ec2')
+    volumes = ec2.describe_volumes(Filters=[{'Name': 'status', 'Values': ['available']}])
+    for volume in volumes['Volumes']:
+        ec2.delete_volume(VolumeId=volume['VolumeId'])
+        print(f"Deleted volume: {volume['VolumeId']}")
+
+# Example usage:
+delete_unused_ebs_volumes()
+
+15) Reduce AWS Lambda storage usage by deleting old versions.
+import boto3
+
+def cleanup_old_lambda_versions(function_name):
+    lambda_client = boto3.client('lambda')
+    versions = lambda_client.list_versions_by_function(FunctionName=function_name)['Versions']
+
+    for version in versions:
+        if version['Version'] not in ['$LATEST']:
+            lambda_client.delete_function(FunctionName=function_name, Qualifier=version['Version'])
+            print(f"Deleted Lambda version {version['Version']}")
+
+# Example usage:
+cleanup_old_lambda_versions('my-lambda-function')
+
+16) Automatically tag newly created AWS resources for better cost allocation.
+import boto3
+
+def tag_ec2_instance(instance_id, tags):
+    ec2 = boto3.client('ec2')
+    ec2.create_tags(Resources=[instance_id], Tags=tags)
+    print(f"Tagged instance {instance_id} with {tags}")
+
+# Example usage:
+tag_ec2_instance('i-1234567890abcdef0', [{'Key': 'Owner', 'Value': 'DevOps'}])
+
+17) Update DNS records dynamically using Route53.
+import boto3
+
+def update_dns_record(domain_name, ip_address, hosted_zone_id):
+    route53 = boto3.client('route53')
+    response = route53.change_resource_record_sets(
+        HostedZoneId=hosted_zone_id,
+        ChangeBatch={
+            'Changes': [
+                {
+                    'Action': 'UPSERT',
+                    'ResourceRecordSet': {
+                        'Name': domain_name,
+                        'Type': 'A',
+                        'TTL': 300,
+                        'ResourceRecords': [{'Value': ip_address}]
+                    }
+                }
+            ]
+        }
+    )
+    print(f"DNS Record Updated: {domain_name} -> {ip_address}")
+
+# Example usage:
+update_dns_record('example.com', '192.168.1.1', 'ZXXXXXXXXXXXXX')
+
+18) Check for Open Security Groups:
+import boto3
+
+def check_open_security_groups():
+    ec2 = boto3.client('ec2')
+    groups = ec2.describe_security_groups()['SecurityGroups']
+    
+    for group in groups:
+        for permission in group['IpPermissions']:
+            for ip_range in permission.get('IpRanges', []):
+                if ip_range['CidrIp'] == '0.0.0.0/0':
+                    print(f"Security Group {group['GroupId']} has open access!")
+
+check_open_security_groups()
+
+19) Create snapshots of RDS instances to safeguard your databases.
+import boto3
+
+def create_rds_snapshot(db_instance_identifier, snapshot_id):
+    rds = boto3.client('rds')
+    rds.create_db_snapshot(DBSnapshotIdentifier=snapshot_id, DBInstanceIdentifier=db_instance_identifier)
+    print(f"Snapshot {snapshot_id} created for {db_instance_identifier}")
+
+# Example usage:
+create_rds_snapshot('my-db-instance', 'my-db-snapshot')
+20) Delete outdated snapshots to save storage costs:
+import boto3
+
+def cleanup_snapshots(retention_days=30):
+    ec2 = boto3.client('ec2')
+    snapshots = ec2.describe_snapshots(OwnerIds=['self'])['Snapshots']
+    
+    for snapshot in snapshots:
+        if (snapshot['StartTime']).days > retention_days:
+            ec2.delete_snapshot(SnapshotId=snapshot['SnapshotId'])
+            print(f"Deleted snapshot {snapshot['SnapshotId']}")
+
+cleanup_snapshots()
+
+
